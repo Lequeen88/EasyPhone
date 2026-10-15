@@ -23,3 +23,14 @@ Arquitectura Desacoplada Cliente-Servidor organizada bajo el patrón **Model-Vie
 
 ## 6. Estado Actual del Proyecto
 Versión `v1.0.0-alpha` con esquema relacional finalizado, prototipo frontend del catálogo en progreso y API REST en fase de pruebas unitarias.
+
+EasyPhone System
+├── Frontend (Cliente - SPA / Mobile Web)
+│   ├── Responsabilidad: Renderizado del catálogo, interfaz de selección de productos, 
+│   │   captura de datos del cliente y cálculo preventivo de totales en la vista.
+│   └── Comunicación: Envía peticiones HTTP/HTTPS (GET, POST) mediante la API REST en formato JSON.
+│
+└── Backend (Servidor - API REST & Base de Datos SQL)
+    ├── Responsabilidad: Autenticación, validación de reglas de negocio (tarifas por zonas, 
+    │   stock de productos) y persistencia en la base de datos SQL Server.
+    └── Respuesta: Retorna códigos de estado HTTP y objetos JSON con la información solicitada.
