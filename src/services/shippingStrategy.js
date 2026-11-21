@@ -21,7 +21,7 @@ class StorePickupStrategy {
   }
 }
 
-class FreeShippingThresholdStrategy {
+class FreeShippingStrategy {
   constructor(minSubtotal, fallbackStrategy) {
     this.minSubtotal = minSubtotal;
     this.fallbackStrategy = fallbackStrategy;
@@ -46,7 +46,7 @@ class OrderSummaryContext {
     this.strategy = strategy;
   }
 
-  calculateSummary({ subtotal, zone }) {
+  calculateTotal({ subtotal, zone }) {
     const shippingCost = this.strategy.calculateCost({ subtotal, zone });
     const taxAmount = Number((subtotal * this.taxRate).toFixed(2));
     const total = Number((subtotal + shippingCost + taxAmount).toFixed(2));
