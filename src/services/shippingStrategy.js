@@ -1,7 +1,36 @@
 // =========================================================
 // PATRÓN DE DISEÑO: STRATEGY
 // Componente: Cotizador de Envío y Resumen de Pedido (EasyPhone)
+// Versión refactorizada (Semana 5): mismo comportamiento, estructura más mantenible.
 // =========================================================
+
+// 0. Funciones auxiliares de validación y cálculo (técnica: Extract Method).
+//    Cada regla vive en un solo lugar: antes estaba repetida en varios métodos.
+
+// ¿Es un número finito y no negativo? (se usa para el subtotal y el monto mínimo)
+const esNumeroNoNegativo = (valor) =>
+  typeof valor === 'number' && Number.isFinite(valor) && valor >= 0;
+
+// ¿Es un objeto con el método calculateCost? (contrato que toda estrategia debe cumplir)
+const esEstrategiaValida = (estrategia) =>
+  Boolean(estrategia) && typeof estrategia.calculateCost === 'function';
+
+// Lanza un error con el mensaje indicado si la estrategia no cumple el contrato
+function validarEstrategia(estrategia, mensaje) {
+  if (!esEstrategiaValida(estrategia)) {
+    throw new Error(mensaje);
+  }
+}
+
+// Lanza un error si el subtotal no es un número válido (NC-03)
+function validarSubtotal(subtotal) {
+  if (!esNumeroNoNegativo(subtotal)) {
+    throw new Error('Subtotal inválido');
+  }
+}
+
+// Redondea a 2 decimales (misma regla que antes: Number(x.toFixed(2)))
+const redondear = (monto) => Number(monto.toFixed(2));
 
 // 1. Estrategias concretas (Reglas de cálculo desacopladas)
 class ZoneRateStrategy {
@@ -29,7 +58,7 @@ class StorePickupStrategy {
 class FreeShippingStrategy {
   constructor(minSubtotal, fallbackStrategy) {
     // NC-05: el monto mínimo debe ser un número válido y no negativo
-    if (typeof minSubtotal !== 'number' || !Number.isFinite(minSubtotal) || minSubtotal < 0) {
+    if (!esNumeroNoNegativo(minSubtotal)) {
       throw new Error('El monto mínimo debe ser un número mayor o igual a 0');
     }
     this.minSubtotal = minSubtotal;
@@ -53,57 +82,51 @@ class OrderSummaryContext {
 
   setStrategy(strategy) {
     // NC-04: rechazar estrategias nulas o que no tengan calculateCost
-    if (!strategy || typeof strategy.calculateCost !== 'function') {
-      throw new Error('Estrategia de envío no válida');
-    }
+    validarEstrategia(strategy, 'Estrategia de envío no válida');
     this.strategy = strategy;
   }
 
+  // Calcula el ITBIS del subtotal (método aparte para poder cambiar la regla en un solo lugar)
+  calculateTax(subtotal) {
+    return redondear(subtotal * this.taxRate);
+  }
+
   calculateTotal({ subtotal, zone }) {
-    // NC-04: validar que exista una estrategia antes de calcular
-    if (!this.strategy || typeof this.strategy.calculateCost !== 'function') {
-      throw new Error('Estrategia de envío no definida');
-    }
-    // NC-03: validar el subtotal (número, finito y no negativo)
-    if (typeof subtotal !== 'number' || !Number.isFinite(subtotal) || subtotal < 0) {
-      throw new Error('Subtotal inválido');
-    }
+    // Validaciones (el orden se mantiene: primero la estrategia, luego el subtotal)
+    validarEstrategia(this.strategy, 'Estrategia de envío no definida'); // NC-04
+    validarSubtotal(subtotal); // NC-03
 
     const shippingCost = this.strategy.calculateCost({ subtotal, zone });
-    const taxAmount = Number((subtotal * this.taxRate).toFixed(2));
-    const total = Number((subtotal + shippingCost + taxAmount).toFixed(2));
+    const taxAmount = this.calculateTax(subtotal);
+    const total = redondear(subtotal + shippingCost + taxAmount);
 
-    return {
-      subtotal,
-      shippingCost,
-      taxAmount,
-      total
-    };
+    return { subtotal, shippingCost, taxAmount, total };
   }
 }
 
 // 3. Ejemplo de ejecución / validación del flujo
-const tarifasPorZona = new ZoneRateStrategy({
-  "Santiago Centro": 150,
-  "Cienfuegos": 250,
-  "Gurabo": 200
-});
+// Ahora vive dentro de una función y solo se ejecuta al correr el archivo directamente
+// (node src/services/shippingStrategy.js). Al importar el módulo, no imprime nada.
+function ejecutarEjemplo() {
+  const tarifasPorZona = new ZoneRateStrategy({
+    'Santiago Centro': 150,
+    Cienfuegos: 250,
+    Gurabo: 200,
+  });
 
-const cotizador = new OrderSummaryContext(tarifasPorZona);
+  const cotizador = new OrderSummaryContext(tarifasPorZona);
 
-// Caso A: Envío a Santiago Centro (Subtotal RD$ 1,300)
-// NC-00: el método correcto es calculateTotal (antes decía calculateSummary y no existe)
-console.log("Pedido con Delivery:", cotizador.calculateTotal({
-  subtotal: 1300,
-  zone: "Santiago Centro"
-}));
+  // Caso A: Envío a Santiago Centro (Subtotal RD$ 1,300)
+  console.log('Pedido con Delivery:', cotizador.calculateTotal({ subtotal: 1300, zone: 'Santiago Centro' }));
 
-// Caso B: Cambio dinámico a Retiro en Sucursal
-cotizador.setStrategy(new StorePickupStrategy());
-console.log("Pedido Retiro en Sucursal:", cotizador.calculateTotal({
-  subtotal: 1300,
-  zone: "N/A"
-}));
+  // Caso B: Cambio dinámico a Retiro en Sucursal
+  cotizador.setStrategy(new StorePickupStrategy());
+  console.log('Pedido Retiro en Sucursal:', cotizador.calculateTotal({ subtotal: 1300, zone: 'N/A' }));
+}
 
-// Exportamos las clases para poder probarlas con Jest
-module.exports = { ZoneRateStrategy, StorePickupStrategy, FreeShippingStrategy, OrderSummaryContext };
+if (require.main === module) {
+  ejecutarEjemplo();
+}
+
+// Exportamos las clases (y el ejemplo) para poder probarlos con Jest
+module.exports = { ZoneRateStrategy, StorePickupStrategy, FreeShippingStrategy, OrderSummaryContext, ejecutarEjemplo };
